@@ -1,0 +1,41 @@
+# ════════════════════════════════════════════════════════════
+# Amharic Mobile-AGI — Python Requirements
+# ════════════════════════════════════════════════════════════
+# TRAINING ENVIRONMENT (laptop / Colab / cloud)
+# Install: pip install -r requirements.txt
+
+# ── Core ML ──────────────────────────────────────────────────
+torch>=2.0.0
+transformers>=4.36.0
+tokenizers>=0.15.0
+datasets>=2.14.0
+sentencepiece>=0.1.99
+
+# ── Optimization & Export ────────────────────────────────────
+onnx>=1.15.0
+onnxruntime>=1.16.0          # For testing export on desktop
+# onnx-tf                    # Uncomment for TFLite export
+# tensorflow>=2.13           # Uncomment for TFLite export
+
+# ── Data Acquisition ─────────────────────────────────────────
+Wikipedia-API>=0.6.0
+requests>=2.28.0
+
+# ── Utilities ────────────────────────────────────────────────
+numpy>=1.24.0
+tqdm>=4.65.0
+scipy>=1.10.0
+
+# ── Logging (optional) ───────────────────────────────────────
+# wandb                      # Uncomment for W&B experiment tracking
+
+# ════════════════════════════════════════════════════════════
+# MOBILE RUNTIME (on device — Android/iOS)
+# Only these packages needed at inference:
+# ════════════════════════════════════════════════════════════
+# onnxruntime-mobile==1.16.0   (~15MB)
+# numpy                        (~4MB, usually pre-installed)
+# sentencepiece                (~1MB, for tokenizer)
+#
+# Total mobile footprint: ~20MB packages + model file
+# ════════════════════════════════════════════════════════════
