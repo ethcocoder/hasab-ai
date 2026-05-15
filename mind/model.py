@@ -136,7 +136,7 @@ class AmharicGPT2(nn.Module):
         
         # 2. Attention mask
         if attention_mask is not None:
-            extended_attention_mask = self.gpt2.get_extended_attention_mask(attention_mask, input_ids.size(), device)
+            extended_attention_mask = self.gpt2.get_extended_attention_mask(attention_mask, input_ids.size(), device, dtype=self.gpt2.dtype)
         else:
             extended_attention_mask = None
 

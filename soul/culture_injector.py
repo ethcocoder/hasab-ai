@@ -81,7 +81,7 @@ class CultureInjector:
     def inject_into_dataset(self, texts: List[str]) -> List[str]:
         """Adds cultural examples to a text list, upweighted."""
         cultural = self._build_cultural_texts()
-        augmented = texts + cultural * self.upweight_factor
+        augmented = texts + cultural * int(self.upweight_factor)
         self.rng.shuffle(augmented)
         return augmented
 
