@@ -12,7 +12,7 @@ import json
 
 class MobileExporter:
     """
-    Exports AmharicGPT2 to:
+    Exports the trained causal language model to:
       1. ONNX      → runs on onnxruntime-mobile (Android/iOS)
       2. TFLite    → runs on TFLite runtime (Android)
     """

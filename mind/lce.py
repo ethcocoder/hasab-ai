@@ -4,7 +4,7 @@ mind/lce.py — Latent Compression Encoder (LCE)
 THE CORE MOBILE INNOVATION of this project.
 
 WHAT IT DOES:
-  GPT-2 hidden states are 768-dimensional. On mobile this is expensive.
+  Transformer hidden states can be large. On mobile this is expensive.
   LCE compresses: 768 → 128 (encoder) → 768 (decoder)
   The 128-dim "latent" is the UNCONSCIOUS MIND — the model's compressed
   inner thought. The decoder reconstructs the full representation.
@@ -19,7 +19,7 @@ RESULT:
   Latent vectors can be stored for long-term "memory" at 1/6 the cost.
 
 TRAINING:
-  LCE is trained jointly with GPT-2 using two losses:
+  LCE can be trained jointly with a transformer using two losses:
     1. Language modeling loss (standard)
     2. Reconstruction loss (MSE between original & reconstructed hidden)
 ═══════════════════════════════════════════════════════════════════

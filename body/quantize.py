@@ -11,7 +11,7 @@ from typing import Dict
 
 class ModelQuantizer:
     """
-    Quantizes the trained AmharicGPT2 model to INT8 for mobile.
+    Quantizes a trained causal language model to INT8 for mobile.
     Dynamic quantization: weights stored as INT8, activations quantized on-the-fly.
     No calibration dataset required.
     """

@@ -1,23 +1,19 @@
 # Hasab (ሃሳብ) — Google Colab GPU terminal guide
 
-This project is designed to run from the **Colab terminal**. The Jupyter notebook has been removed.
+Hasab now uses **Qwen2.5-0.5B with LoRA** as its only language-model backend. The notebook workflow has been removed.
 
 ## 1. Create a GPU runtime
 
 1. Open [Google Colab](https://colab.research.google.com/) and create a new notebook.
-2. Choose **Runtime → Change runtime type → T4 GPU** (or another available NVIDIA GPU).
-3. Open the terminal with **File → Open terminal**.
+2. Choose **Runtime → Change runtime type → T4 GPU**.
+3. Open **File → Open terminal**.
 4. Verify the GPU:
 
 ```bash
 nvidia-smi
 ```
 
-If `nvidia-smi` does not show a GPU, return to step 2 before installing anything.
-
-## 2. Clone the project and install dependencies
-
-Run these commands in the Colab terminal:
+## 2. Clone and install
 
 ```bash
 cd /content
@@ -27,60 +23,75 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-The requirements file pins `transformers` below 5.0 because this project inserts
-custom LCE layers into GPT-2's internal blocks. If Transformers 5 was already
-installed in the runtime, the command above will downgrade it to the supported
-4.x release.
-
-Colab normally includes a CUDA-enabled PyTorch build. Confirm that Python can see it:
+The project uses `transformers<5` for compatibility with the current PEFT/Qwen integration. Confirm the environment:
 
 ```bash
 python - <<'PY'
-import torch
+import torch, transformers, peft
 print("PyTorch:", torch.__version__)
-print("CUDA available:", torch.cuda.is_available())
+print("Transformers:", transformers.__version__)
+print("PEFT:", peft.__version__)
+print("CUDA:", torch.cuda.is_available())
 print("GPU:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "none")
 PY
 ```
 
-The project downloads the pretrained `gpt2` weights the first time `finetune` runs. Make sure the runtime has internet access and enough disk space.
+The first training run downloads `Qwen/Qwen2.5-0.5B`. It fits on a T4 when trained with LoRA.
 
-## 3. Run a small smoke test first
+## 3. Run the Qwen smoke test
 
-Do not start with 50,000 steps. First verify every stage with a short run:
+Your current Wikipedia run produces only a few hundred sentences, so start with a short pipeline test:
 
 ```bash
 python main.py --mode full \
   --max-steps 20 \
-  --lce-warmup-steps 5 \
   --batch-size 1 \
   --gradient-accumulation-steps 1 \
+  --max-length 256 \
   --num-workers 0 \
   --device cuda
 ```
 
-This command runs:
+This runs:
 
-1. data acquisition from Amharic Wikipedia;
+1. Amharic data acquisition;
 2. cleaning and safety filtering;
-3. tokenizer training;
-4. GPU fine-tuning;
-5. pruning and dynamic INT8 quantization;
-6. ONNX export and mobile bundle creation; and
-7. evaluation.
+3. Qwen tokenizer loading;
+4. Qwen2.5-0.5B LoRA fine-tuning; and
+5. sample generation evaluation.
 
-The first run may take time while GPT-2 and Python packages are downloaded.
+The adapter is saved to:
 
-## 4. Start a real training run
+```text
+models/qwen_adapter/
+```
 
-After the smoke test succeeds, choose settings based on the available GPU memory. A T4 usually has 16 GB VRAM:
+The base Qwen model remains in the Hugging Face cache. Only the small LoRA adapter needs to be copied as your project output.
+
+## 4. Test chat after training
+
+```bash
+python main.py --mode chat --device cuda
+```
+
+Type `quit` to exit.
+
+You can also run evaluation without interactive chat:
+
+```bash
+python main.py --mode test --device cuda
+```
+
+## 5. Start a longer LoRA run
+
+After the smoke test completes successfully:
 
 ```bash
 python main.py --mode full \
-  --max-steps 10000 \
-  --lce-warmup-steps 500 \
-  --batch-size 2 \
-  --gradient-accumulation-steps 8 \
+  --max-steps 2000 \
+  --batch-size 1 \
+  --gradient-accumulation-steps 16 \
+  --max-length 512 \
   --num-workers 0 \
   --device cuda
 ```
@@ -91,80 +102,57 @@ The effective batch size is:
 batch-size × gradient-accumulation-steps
 ```
 
-For the original default-length run, omit `--max-steps` and `--lce-warmup-steps`, but expect a long run:
+Because the initial corpus is small, collect more Amharic text before treating a longer run as a quality experiment. A useful next target is at least **100,000 Amharic sentences**.
 
-```bash
-python main.py --mode full --batch-size 2 --gradient-accumulation-steps 8 --num-workers 0 --device cuda
-```
+## 6. If you get CUDA out-of-memory errors
 
-### If you receive CUDA out-of-memory errors
-
-Retry with a smaller per-device batch and/or sequence length. The sequence length is configured in `config.py`:
+Use a shorter sequence and keep batch size at 1:
 
 ```bash
 python main.py --mode full \
-  --max-steps 10000 \
-  --lce-warmup-steps 500 \
+  --max-steps 1000 \
   --batch-size 1 \
   --gradient-accumulation-steps 16 \
+  --max-length 128 \
   --num-workers 0 \
   --device cuda
 ```
 
-Then, if necessary, edit `CFG.mind.max_seq_len` in `config.py` from `512` to `256`. Keep the change consistent for the whole run.
+Do not replace Qwen's tokenizer with the old custom tokenizer. Qwen must use its original tokenizer because its vocabulary and embedding IDs are pretrained together.
 
-## 5. Run individual stages from the terminal
-
-You can rerun a stage without rerunning the entire pipeline:
+## 7. Run individual stages
 
 ```bash
 python main.py --mode acquire
 python main.py --mode clean
-python main.py --mode tokenizer
-python main.py --mode finetune --max-steps 10000 --batch-size 2 --num-workers 0 --device cuda
-python main.py --mode compress
-python main.py --mode export
-python main.py --mode test
-python main.py --mode chat
+python main.py --mode finetune --max-steps 1000 --batch-size 1 --num-workers 0 --device cuda
+python main.py --mode test --device cuda
+python main.py --mode chat --device cuda
 ```
 
-Use `python main.py --help` to see all options.
+Use `python main.py --help` for all options.
 
-## 6. Keep outputs after the Colab session ends
-
-Colab runtimes are temporary. Copy the repository outputs to Google Drive before disconnecting. In the terminal:
+## 8. Persist the adapter in Google Drive
 
 ```bash
 mkdir -p /content/drive/MyDrive/hasab-ai-output
-cp -r models logs /content/drive/MyDrive/hasab-ai-output/
+cp -r models/qwen_adapter /content/drive/MyDrive/hasab-ai-output/
+cp -r data/clean /content/drive/MyDrive/hasab-ai-output/
 ```
 
-If you want the source and outputs to persist between sessions, clone the repository into Drive instead:
-
-```bash
-git clone https://github.com/ethcocoder/hasab-ai.git /content/drive/MyDrive/hasab-ai
-cd /content/drive/MyDrive/hasab-ai
-```
-
-## 7. Expected output files
-
-After a successful run, the important files are:
+Important output files:
 
 ```text
-models/checkpoints/final_model.pt
-models/tokenizer/tokenizer.json
-models/tokenizer/tokenizer_config.json
-models/exported/hasab_amharic.onnx
-models/exported/hasab_mobile_bundle.zip
-logs/eval_report.json
+models/qwen_adapter/adapter_config.json
+models/qwen_adapter/adapter_model.safetensors
+models/qwen_adapter/tokenizer.json
+models/qwen_adapter/tokenizer_config.json
 ```
 
-The ONNX runtime now prefers the serialized BPE tokenizer from `tokenizer.json`, so terminal chat and exported inference use the same tokenization as training.
+## Troubleshooting
 
-## 8. Troubleshooting
-
-- **`CUDA is not available`**: select a GPU runtime and restart the runtime.
-- **`No raw files found`**: the pipeline automatically runs acquisition; check internet access if Wikipedia download fails.
-- **Hugging Face download errors**: rerun `python main.py --mode finetune` after confirming internet access.
-- **Colab disconnects**: use fewer steps, save checkpoints, and copy `models/` to Drive.
-- **Export problems related to TFLite**: the pipeline treats TFLite as optional. ONNX export and the mobile bundle are the primary outputs.
+- **`CUDA is not available`**: select a GPU runtime and restart Colab.
+- **Transformers version errors**: run `python -m pip install --upgrade --force-reinstall -r requirements.txt`.
+- **Hugging Face download errors**: verify internet access and rerun `python main.py --mode finetune`.
+- **Out of memory**: use `--batch-size 1 --max-length 128`.
+- **No adapter found**: run `python main.py --mode finetune` before `test` or `chat`.

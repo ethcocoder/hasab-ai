@@ -22,6 +22,7 @@ class PathConfig:
     data_clean:         Path = ROOT / "data" / "clean"
     data_processed:     Path = ROOT / "data" / "processed"
     checkpoints:        Path = ROOT / "models" / "checkpoints"
+    qwen_adapter:       Path = ROOT / "models" / "qwen_adapter"
     exported:           Path = ROOT / "models" / "exported"
     logs:               Path = ROOT / "logs"
     tokenizer_dir:      Path = ROOT / "models" / "tokenizer"
@@ -51,7 +52,7 @@ class DataConfig:
 
 @dataclass
 class TokenizerConfig:
-    vocab_size:     int  = 8000    # vs GPT-2's 50k — mobile-friendly
+    vocab_size:     int  = 8000    # retained for legacy data utilities
     min_frequency:  int  = 2
     special_tokens: List[str] = field(default_factory=lambda: [
         "<pad>", "<unk>", "<bos>", "<eos>",
@@ -63,28 +64,13 @@ class TokenizerConfig:
 
 
 @dataclass
-class MindConfig:
-    """GPT-2 + LCE (Latent Compression Encoder) settings"""
-    # Base GPT-2 variant
-    base_model:         str   = "gpt2"          # gpt2 | gpt2-medium
-    d_model:            int   = 768             # GPT-2 hidden size
-    n_layers:           int   = 12
-    n_heads:            int   = 12
+class ModelConfig:
+    """Qwen2.5 causal language model and LoRA settings."""
+    base_model:         str   = "Qwen/Qwen2.5-0.5B"
     max_seq_len:        int   = 512
-
-    # LCE — Latent Compression Encoder
-    lce_enabled:        bool  = True
-    lce_latent_dim:     int   = 128             # 768 → 128 → 768
-    lce_insert_every_n: int   = 3               # Insert LCE every N layers
-    lce_dropout:        float = 0.1
-
-    # Cerebellum — fast reflex cache
-    cerebellum_enabled: bool  = True
-    cerebellum_cache_size: int = 2048           # Cached pattern entries
-
-    # Conscious attention pruning
-    attention_sparsity: float = 0.3             # Prune 30% of attn heads
-    kv_cache_budget:    int   = 256             # Max KV cache tokens mobile
+    lora_r:             int   = 8
+    lora_alpha:         int   = 16
+    lora_dropout:       float = 0.05
 
 
 @dataclass
@@ -125,11 +111,6 @@ class TrainingConfig:
     device:             str  = "auto"        # auto | cuda | cpu
     seed:               int   = 42
     num_workers:        int   = 2
-
-    # LCE joint training
-    lce_loss_weight:    float = 0.1            # Reconstruction loss weight
-    lce_warmup_steps:   int   = 1000           # Train LCE alone first
-
 
 @dataclass
 class BodyConfig:
@@ -182,7 +163,7 @@ class Config:
         self.paths      = PathConfig()
         self.data       = DataConfig()
         self.tokenizer  = TokenizerConfig()
-        self.mind       = MindConfig()
+        self.model      = ModelConfig()
         self.heart      = HeartConfig()
         self.soul       = SoulConfig()
         self.training   = TrainingConfig()
@@ -196,10 +177,8 @@ class Config:
     def __repr__(self):
         return (
             f"Config(\n"
-            f"  vocab_size={self.tokenizer.vocab_size}, "
-            f"d_model={self.mind.d_model}, "
-            f"lce_latent={self.mind.lce_latent_dim},\n"
-            f"  max_seq={self.mind.max_seq_len}, "
+            f"  base_model={self.model.base_model}, "
+            f"max_seq={self.model.max_seq_len}, "
             f"batch={self.training.batch_size}, "
             f"lr={self.training.learning_rate}\n"
             f")"

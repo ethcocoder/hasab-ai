@@ -2,7 +2,7 @@
 body/tokenizer.py — Custom BPE Tokenizer for Amharic (Ge'ez script)
 ═══════════════════════════════════════════════════════════════════
 WHY custom tokenizer:
-  GPT-2's tokenizer was trained on English. Amharic characters
+  A generic English tokenizer can waste context on Amharic. Amharic characters
   (ሀ-ፐ, Unicode U+1200–U+137F) fall back to byte-level encoding,
   splitting each character into 3 bytes. This wastes ~6x context.
 

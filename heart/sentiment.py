@@ -1,6 +1,6 @@
 """
 heart/sentiment.py — Lightweight Amharic sentiment tagging.
-BiLSTM head attached to GPT-2 output. ~0.3MB extra on device.
+BiLSTM sentiment head for hidden-state features. ~0.3MB extra on device.
 """
 
 import torch
@@ -24,7 +24,7 @@ AMHARIC_SENTIMENT_LEXICON = {
 
 class SentimentHead(nn.Module):
     """
-    Tiny BiLSTM sentiment classifier that sits on top of GPT-2 hidden states.
+    Tiny BiLSTM sentiment classifier for transformer hidden states.
     Input:  (batch, seq_len, d_model=768)
     Output: (batch, 5) logits
     """

@@ -16,7 +16,7 @@ in Amharic-first.
 |---------|------------|
 | Soul    | Values, cultural DNA, safety gate |
 | Heart   | Tone modulation, sentiment, context window |
-| Mind    | GPT-2 + LCE compression, cerebellum reflex cache |
+| Mind    | Qwen2.5-0.5B + LoRA fine-tuning |
 | Body    | Custom 8k BPE tokenizer, ONNX export, mobile runtime |
 
 **Metrics target:**
@@ -76,13 +76,13 @@ New capabilities:
 ## Architecture Decision Log
 
 ### Why LCE (Latent Compression Encoder)?
-**Problem:** GPT-2 hidden states (768d) are too large for mobile RAM.
+**Problem:** Transformer hidden states can be too large for mobile RAM.
 **Solution:** Bottleneck autoencoder: 768 → 128 → 768.
 **Result:** 6x compression of KV cache, ~70% RAM reduction.
 **Innovation:** Gated residual mixing — starts as pass-through, learns compression.
 
 ### Why custom tokenizer (8k vocab)?
-**Problem:** GPT-2 tokenizer byte-falls-back on Ge'ez → 3x more tokens.
+**Problem:** The base tokenizer may be inefficient for Ge'ez → collect Amharic data and measure token efficiency.
 **Solution:** BPE trained on Amharic corpus, 8000 vocab.
 **Result:** 3-6x fewer tokens for same text → smaller context → faster inference.
 
@@ -108,7 +108,7 @@ without breaking the others — critical for the AGI roadmap.
 This is an open architecture. Each module can be improved independently:
 - **Soul:** Add more cultural training data, refine constitution
 - **Heart:** Train better Amharic sentiment classifier
-- **Mind:** Scale up model size, add new LCE variants
+- **Mind:** Improve Qwen LoRA data, evaluation, and mobile quantization
 - **Body:** Export to new runtimes (Core ML, TensorRT)
 
 **ዕውቀት አገልግሎት ነው — Knowledge is service.**

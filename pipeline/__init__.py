@@ -1,8 +1,6 @@
 """pipeline/__init__.py"""
 from .acquire import DataAcquirer
 from .clean import AmharicCleaner
-from .dataset import AmharicDataset
-from .finetune import Trainer
-from .evaluate import Evaluator
+from .finetune import QwenTrainer, QwenTextDataset
 
-__all__ = ["DataAcquirer", "AmharicCleaner", "AmharicDataset", "Trainer", "Evaluator"]
+__all__ = ["DataAcquirer", "AmharicCleaner", "QwenTrainer", "QwenTextDataset"]

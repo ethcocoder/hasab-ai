@@ -1,10 +1,5 @@
-"""
-mind/__init__.py — Cognitive Processing Layer
-Conscious: attention, reasoning, working memory, cerebrum
-Unconscious: LCE bottleneck, primal embeddings, cerebellum
-"""
-from .lce import LatentCompressionEncoder
-from .cerebellum import Cerebellum
-from .model import AmharicGPT2
+"""Mind-layer utilities used by the Qwen-backed Hasab runtime."""
 
-__all__ = ["LatentCompressionEncoder", "Cerebellum", "AmharicGPT2"]
+from .cerebellum import Cerebellum
+
+__all__ = ["Cerebellum"]
