@@ -5,6 +5,7 @@ Usage:
   python main.py --mode full       # acquire, clean, LoRA train, evaluate
   python main.py --mode acquire
   python main.py --mode clean
+  python main.py --mode prepare-data
   python main.py --mode finetune
   python main.py --mode test
   python main.py --mode chat
@@ -28,8 +29,8 @@ from soul.culture_injector import CultureInjector
 from soul.safety_gate import SafetyGate
 from heart.persona import PersonaTracker
 from pipeline.acquire import DataAcquirer
-from pipeline.clean import AmharicCleaner
 from pipeline.finetune import QwenTrainer
+from pipeline.prepare_data import AmharicDataBuilder
 
 
 def stage_acquire():
@@ -52,54 +53,67 @@ def stage_clean():
     print("\n" + "=" * 60)
     print("② CLEANING DATA")
     print("=" * 60)
-    cleaner = AmharicCleaner(
-        min_length=CFG.data.min_sentence_length,
-        max_length=CFG.data.max_sentence_length,
-        min_amharic_ratio=CFG.data.min_amharic_ratio,
-    )
     raw_files = list(CFG.paths.data_raw.glob("*.txt"))
     if not raw_files:
         print("⚠️  No raw files found. Running acquire first.")
         stage_acquire()
         raw_files = list(CFG.paths.data_raw.glob("*.txt"))
 
-    all_sentences = []
-    for raw_file in raw_files:
-        out_path = CFG.paths.data_clean / raw_file.name
-        cleaner.process_file(raw_file, out_path)
-        with open(out_path, "r", encoding="utf-8") as f:
-            all_sentences.extend(s for s in f.read().splitlines() if s.strip())
-
-    clean_sentences, removed = SafetyGate().filter_dataset(all_sentences)
-    print(f"🛡️  Safety filter removed {removed} sentences")
-    final_sentences = CultureInjector(
-        upweight_factor=CFG.soul.amharic_culture_weight
-    ).inject_into_dataset(clean_sentences)
-    final_path = CFG.paths.data_clean / "corpus_final.txt"
-    with open(final_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(final_sentences))
-    print(f"✅ Final corpus: {len(final_sentences)} sentences → {final_path}")
-    return final_sentences
+    outputs = AmharicDataBuilder(CFG).build()
+    manifest = json.loads(outputs["manifest"].read_text(encoding="utf-8"))
+    stats = manifest["stats"]
+    print(f"✅ Knowledge records: {stats['kept_knowledge']} → {outputs['knowledge']}")
+    print(f"✅ Chat records: {stats['kept_chat']} → {outputs['chat']}")
+    print(f"🧹 Removed duplicates: {stats['removed_duplicate']}")
+    print(f"⚠️  Records needing human review: {stats['review_numeric_or_historical']}")
+    return outputs
 
 
-def load_corpus():
-    path = CFG.paths.data_clean / "corpus_final.txt"
-    if not path.exists():
-        return stage_clean()
-    with open(path, "r", encoding="utf-8") as f:
-        return [line.strip() for line in f if line.strip()]
+def load_records():
+    knowledge_path = CFG.paths.data_processed / "knowledge.jsonl"
+    chat_path = CFG.paths.data_processed / "chat.jsonl"
+    if not knowledge_path.exists() or not chat_path.exists():
+        stage_clean()
+
+    def read_jsonl(path):
+        with open(path, encoding="utf-8") as handle:
+            return [json.loads(line) for line in handle if line.strip()]
+
+    knowledge = read_jsonl(knowledge_path)
+    chat = read_jsonl(chat_path)
+    if not knowledge and not chat:
+        raise ValueError("The prepared dataset is empty; inspect data/processed/manifest.json")
+    return knowledge, chat
+
+
+def stage_prepare_data():
+    """Build processed knowledge/chat JSONL files and a quality manifest."""
+    print("\n" + "=" * 60)
+    print("② DATA QUALITY PREPARATION")
+    print("=" * 60)
+    stage_clean()
 
 
 def stage_finetune():
     print("\n" + "=" * 60)
     print("③ QWEN2.5-0.5B LoRA FINE-TUNING")
     print("=" * 60)
-    sentences = load_corpus()
-    n = len(sentences)
-    train_end = max(1, int(n * CFG.data.train_split))
-    val_end = max(train_end + 1, int(n * (CFG.data.train_split + CFG.data.val_split)))
+    knowledge, chat = load_records()
+    def split(items):
+        n = len(items)
+        train_end = max(1, int(n * CFG.data.train_split)) if n else 0
+        val_end = max(train_end + 1, int(n * (CFG.data.train_split + CFG.data.val_split))) if n else 0
+        return items[:train_end], items[train_end:val_end]
+    knowledge_train, knowledge_val = split(knowledge)
+    chat_train, chat_val = split(chat)
+    # Repeat only within the training partition to avoid validation leakage.
+    target_chat = max(1, round(len(knowledge_train) * CFG.data.chat_mix / max(CFG.data.knowledge_mix, 0.01))) if chat_train else 0
+    mixed_chat_train = (chat_train * ((target_chat + len(chat_train) - 1) // len(chat_train)))[:target_chat] if chat_train else []
     trainer = QwenTrainer(CFG)
-    model, tokenizer = trainer.train(sentences[:train_end], sentences[train_end:val_end])
+    model, tokenizer = trainer.train(
+        knowledge_train + mixed_chat_train,
+        knowledge_val + chat_val,
+    )
     return model, tokenizer
 
 
@@ -160,7 +174,7 @@ def main():
     parser = argparse.ArgumentParser(description="Hasab Qwen2.5-0.5B pipeline")
     parser.add_argument(
         "--mode",
-        choices=["full", "acquire", "clean", "finetune", "test", "chat"],
+        choices=["full", "acquire", "clean", "prepare-data", "finetune", "test", "chat"],
         default="full",
     )
     parser.add_argument("--max-steps", type=int, default=None)
@@ -191,6 +205,7 @@ def main():
         "full": stage_full,
         "acquire": stage_acquire,
         "clean": stage_clean,
+        "prepare-data": stage_prepare_data,
         "finetune": stage_finetune,
         "test": stage_test,
         "chat": stage_chat,

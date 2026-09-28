@@ -56,7 +56,34 @@ The first training run downloads `Qwen/Qwen2.5-0.5B`. It fits on a T4 when train
 
 ## 3. Run the Qwen smoke test
 
-Your current Wikipedia run produces only a few hundred sentences, so start with a short pipeline test:
+Your current Wikipedia run produces only a few hundred sentences, so first build
+the quality-controlled datasets:
+
+```bash
+USE_TF=0 TRANSFORMERS_NO_TF=1 python main.py --mode prepare-data
+```
+
+This creates:
+
+```text
+data/processed/knowledge.jsonl
+data/processed/chat.jsonl
+data/processed/manifest.json
+```
+
+Inspect the manifest before training:
+
+```bash
+cat data/processed/manifest.json
+```
+
+The builder removes short lines, headings, URL records, malformed fragments,
+near-duplicates, low-Amharic records, and unsafe records. It flags numeric,
+historical, and political claims for human review. Automatic cleaning cannot
+prove that a factual claim is true, so review those records before a serious
+training run.
+
+Then run the Qwen smoke test:
 
 ```bash
 python main.py --mode full \
@@ -71,10 +98,10 @@ python main.py --mode full \
 This runs:
 
 1. Amharic data acquisition;
-2. cleaning and safety filtering;
+2. quality-controlled knowledge and chat dataset preparation;
 3. Qwen tokenizer loading;
-4. Qwen2.5-0.5B LoRA fine-tuning; and
-5. sample generation evaluation.
+4. Qwen2.5-0.5B LoRA fine-tuning using a 70/30 knowledge/chat mixture; and
+5. sample generation evaluation using Qwen's official chat template.
 
 The adapter is saved to:
 
@@ -140,7 +167,7 @@ Do not replace Qwen's tokenizer with the old custom tokenizer. Qwen must use its
 
 ```bash
 python main.py --mode acquire
-python main.py --mode clean
+python main.py --mode prepare-data
 python main.py --mode finetune --max-steps 1000 --batch-size 1 --num-workers 0 --device cuda
 python main.py --mode test --device cuda
 python main.py --mode chat --device cuda
@@ -153,7 +180,7 @@ Use `python main.py --help` for all options.
 ```bash
 mkdir -p /content/drive/MyDrive/hasab-ai-output
 cp -r models/qwen_adapter /content/drive/MyDrive/hasab-ai-output/
-cp -r data/clean /content/drive/MyDrive/hasab-ai-output/
+cp -r data/processed /content/drive/MyDrive/hasab-ai-output/
 ```
 
 Important output files:
@@ -163,6 +190,9 @@ models/qwen_adapter/adapter_config.json
 models/qwen_adapter/adapter_model.safetensors
 models/qwen_adapter/tokenizer.json
 models/qwen_adapter/tokenizer_config.json
+data/processed/knowledge.jsonl
+data/processed/chat.jsonl
+data/processed/manifest.json
 ```
 
 ## Troubleshooting

@@ -48,6 +48,8 @@ class DataConfig:
     train_split:            float = 0.90
     val_split:              float = 0.05
     test_split:             float = 0.05
+    knowledge_mix:          float = 0.70
+    chat_mix:               float = 0.30
 
 
 @dataclass

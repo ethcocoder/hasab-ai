@@ -10,7 +10,7 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import torch
 from torch.utils.data import DataLoader, Dataset
@@ -25,11 +25,17 @@ from peft import LoraConfig, PeftModel, TaskType, get_peft_model
 
 
 class QwenTextDataset(Dataset):
-    """Tokenized causal-language-model examples with masked padding labels."""
+    """Tokenized knowledge/chat records with Qwen's native chat format."""
 
-    def __init__(self, texts: List[str], tokenizer, max_length: int = 512):
+    def __init__(self, records: List[Dict[str, Any]], tokenizer, max_length: int = 512):
         self.examples = []
-        for text in texts:
+        for record in records:
+            if record.get("type") == "chat":
+                text = tokenizer.apply_chat_template(
+                    record["messages"], tokenize=False, add_generation_prompt=False
+                )
+            else:
+                text = record.get("text", "")
             encoded = tokenizer(
                 text,
                 max_length=max_length,
@@ -102,10 +108,10 @@ class QwenTrainer:
             model.enable_input_require_grads()
         return model.to(self.device)
 
-    def train(self, train_texts: List[str], val_texts: Optional[List[str]] = None):
+    def train(self, train_records: List[Dict[str, Any]], val_records: Optional[List[Dict[str, Any]]] = None):
         tokenizer = self._load_tokenizer()
-        train_ds = QwenTextDataset(train_texts, tokenizer, self.cfg.model.max_seq_len)
-        val_ds = QwenTextDataset(val_texts or [], tokenizer, self.cfg.model.max_seq_len)
+        train_ds = QwenTextDataset(train_records, tokenizer, self.cfg.model.max_seq_len)
+        val_ds = QwenTextDataset(val_records or [], tokenizer, self.cfg.model.max_seq_len)
         if not train_ds:
             raise ValueError("No training examples were created from the corpus")
 
@@ -173,6 +179,8 @@ class QwenTrainer:
                 "base_model": self.model_name,
                 "max_seq_len": self.cfg.model.max_seq_len,
                 "train_examples": len(train_ds),
+                "train_chat_examples": sum(r.get("type") == "chat" for r in train_records),
+                "train_knowledge_examples": sum(r.get("type") == "text" for r in train_records),
                 "max_steps": max_steps,
             }, f, indent=2)
         print(f"✅ Qwen LoRA adapter saved to {self.output_dir}")
@@ -197,7 +205,12 @@ class QwenTrainer:
     @torch.no_grad()
     def generate(self, prompt: str, max_new_tokens: int = 128):
         model, tokenizer = self.load_adapter()
-        inputs = tokenizer(prompt, return_tensors="pt").to(self.device)
+        formatted = tokenizer.apply_chat_template(
+            [{"role": "user", "content": prompt}],
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+        inputs = tokenizer(formatted, return_tensors="pt").to(self.device)
         output = model.generate(
             **inputs,
             max_new_tokens=max_new_tokens,

@@ -2,5 +2,5 @@
 from .acquire import DataAcquirer
 from .clean import AmharicCleaner
 from .finetune import QwenTrainer, QwenTextDataset
-
-__all__ = ["DataAcquirer", "AmharicCleaner", "QwenTrainer", "QwenTextDataset"]
+from .prepare_data import AmharicDataBuilder
+__all__ = ["DataAcquirer", "AmharicCleaner", "QwenTrainer", "QwenTextDataset", "AmharicDataBuilder"]
