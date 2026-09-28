@@ -12,7 +12,14 @@ Usage:
 
 import argparse
 import json
+import os
 from pathlib import Path
+
+# Qwen training is PyTorch-only. Prevent Transformers from importing Colab's
+# TensorFlow stack, which can cause binary conflicts and process crashes.
+os.environ.setdefault("USE_TF", "0")
+os.environ.setdefault("USE_FLAX", "0")
+os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
 
 import torch
 

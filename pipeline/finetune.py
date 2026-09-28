@@ -7,6 +7,7 @@ small smoke test without updating all 0.5B base-model weights.
 """
 
 import json
+import os
 import time
 from pathlib import Path
 from typing import List, Optional
@@ -14,6 +15,11 @@ from typing import List, Optional
 import torch
 from torch.utils.data import DataLoader, Dataset
 from torch.optim import AdamW
+# Qwen training is PyTorch-only; avoid loading Colab's TensorFlow backend.
+os.environ.setdefault("USE_TF", "0")
+os.environ.setdefault("USE_FLAX", "0")
+os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
+
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import LoraConfig, PeftModel, TaskType, get_peft_model
 

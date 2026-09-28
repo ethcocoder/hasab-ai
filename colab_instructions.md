@@ -39,7 +39,7 @@ reinstall `torch` manually; Colab already provides the CUDA-enabled build.
 The project uses `transformers<5` for compatibility with the current PEFT/Qwen integration. Confirm the environment:
 
 ```bash
-python - <<'PY'
+USE_TF=0 TRANSFORMERS_NO_TF=1 python - <<'PY'
 import torch, transformers, peft
 print("PyTorch:", torch.__version__)
 print("Transformers:", transformers.__version__)
@@ -48,6 +48,9 @@ print("CUDA:", torch.cuda.is_available())
 print("GPU:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "none")
 PY
 ```
+
+The `USE_TF=0` setting is intentional. Qwen fine-tuning uses PyTorch only;
+loading Colab's TensorFlow stack can cause a native-library segmentation fault.
 
 The first training run downloads `Qwen/Qwen2.5-0.5B`. It fits on a T4 when trained with LoRA.
 
