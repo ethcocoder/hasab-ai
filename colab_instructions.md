@@ -27,6 +27,11 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
+The requirements file pins `transformers` below 5.0 because this project inserts
+custom LCE layers into GPT-2's internal blocks. If Transformers 5 was already
+installed in the runtime, the command above will downgrade it to the supported
+4.x release.
+
 Colab normally includes a CUDA-enabled PyTorch build. Confirm that Python can see it:
 
 ```bash
