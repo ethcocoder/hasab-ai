@@ -116,7 +116,13 @@ class Trainer:
             weight_decay = tc.weight_decay,
         )
         scheduler = CosineAnnealingLR(optimizer, T_max=tc.max_steps)
-        scaler    = torch.cuda.amp.GradScaler() if (tc.fp16 and self.device == "cuda") else None
+        if tc.fp16 and self.device == "cuda":
+            try:
+                scaler = torch.amp.GradScaler("cuda")
+            except (AttributeError, TypeError):
+                scaler = torch.cuda.amp.GradScaler()
+        else:
+            scaler = None
 
         # ── Phase 1: Freeze GPT-2, train LCE only ────────────────────────────
         print("\n📍 Phase 1: Training LCE bottleneck (GPT-2 frozen)")
@@ -160,7 +166,11 @@ class Trainer:
 
                 # Forward pass
                 if scaler:
-                    with torch.cuda.amp.autocast():
+                    try:
+                        autocast_context = torch.amp.autocast("cuda")
+                    except (AttributeError, TypeError):
+                        autocast_context = torch.cuda.amp.autocast()
+                    with autocast_context:
                         out  = self.model(ids, mask, lbl)
                         loss = out["loss"] / tc.gradient_accumulation_steps
                     scaler.scale(loss).backward()

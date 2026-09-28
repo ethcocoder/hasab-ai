@@ -136,7 +136,10 @@ class AmharicGPT2(nn.Module):
         
         # 2. Attention mask
         if attention_mask is not None:
-            extended_attention_mask = self.gpt2.get_extended_attention_mask(attention_mask, input_ids.size(), device, dtype=self.gpt2.dtype)
+            # Build the additive padding mask directly. Recent Transformers
+            # versions changed get_extended_attention_mask's argument order.
+            extended_attention_mask = attention_mask[:, None, None, :].to(dtype=self.gpt2.dtype)
+            extended_attention_mask = (1.0 - extended_attention_mask) * torch.finfo(self.gpt2.dtype).min
         else:
             extended_attention_mask = None
 
