@@ -23,6 +23,19 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
+If importing `peft` fails with `operator torchvision::nms does not exist`,
+Colab's optional torchvision package does not match its PyTorch package. Run
+this once, then restart the Colab runtime and reinstall the project packages:
+
+```bash
+python -m pip uninstall -y torchvision
+python -m pip install --no-cache-dir --force-reinstall \
+  "transformers==4.46.3" "peft==0.13.2" "accelerate==0.34.2"
+```
+
+After restarting the runtime, rerun the installation command above. Do not
+reinstall `torch` manually; Colab already provides the CUDA-enabled build.
+
 The project uses `transformers<5` for compatibility with the current PEFT/Qwen integration. Confirm the environment:
 
 ```bash
