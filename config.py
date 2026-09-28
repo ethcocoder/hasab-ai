@@ -121,7 +121,8 @@ class TrainingConfig:
     eval_every:         int   = 500
     save_every:         int   = 1000
     max_grad_norm:      float = 1.0
-    fp16:               bool  = True
+    fp16:               bool = True
+    device:             str  = "auto"        # auto | cuda | cpu
     seed:               int   = 42
     num_workers:        int   = 2
 

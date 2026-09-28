@@ -197,12 +197,20 @@ def stage_compress(model=None, tokenizer=None):
         tokenizer = AmharicTokenizer()
         tokenizer.load(CFG.paths.root / "models" / "tokenizer")
         model = AmharicGPT2(
-            vocab_size = tokenizer.vocab_size_actual(),
-            pretrained = None,
+            vocab_size         = tokenizer.vocab_size_actual(),
+            d_model            = CFG.mind.d_model,
+            n_layers           = CFG.mind.n_layers,
+            n_heads            = CFG.mind.n_heads,
+            max_seq_len        = CFG.mind.max_seq_len,
+            lce_enabled        = CFG.mind.lce_enabled,
+            lce_latent_dim     = CFG.mind.lce_latent_dim,
+            lce_insert_every_n = CFG.mind.lce_insert_every_n,
+            cerebellum_enabled = CFG.mind.cerebellum_enabled,
+            pretrained         = None,
         )
         ckpt = CFG.paths.checkpoints / "final_model.pt"
         if ckpt.exists():
-            model.load_state_dict(torch.load(ckpt, map_location="cpu"))
+            model.load_state_dict(torch.load(ckpt, map_location="cpu", weights_only=True))
 
     # Prune attention heads
     pruned = model.prune_attention_heads(sparsity=CFG.mind.attention_sparsity)
@@ -244,12 +252,20 @@ def stage_test(model=None, tokenizer=None):
         tokenizer = AmharicTokenizer()
         tokenizer.load(CFG.paths.root / "models" / "tokenizer")
         model = AmharicGPT2(
-            vocab_size = tokenizer.vocab_size_actual(),
-            pretrained = None,
+            vocab_size         = tokenizer.vocab_size_actual(),
+            d_model            = CFG.mind.d_model,
+            n_layers           = CFG.mind.n_layers,
+            n_heads            = CFG.mind.n_heads,
+            max_seq_len        = CFG.mind.max_seq_len,
+            lce_enabled        = CFG.mind.lce_enabled,
+            lce_latent_dim     = CFG.mind.lce_latent_dim,
+            lce_insert_every_n = CFG.mind.lce_insert_every_n,
+            cerebellum_enabled = CFG.mind.cerebellum_enabled,
+            pretrained         = None,
         )
         ckpt = CFG.paths.checkpoints / "final_model.pt"
         if ckpt.exists():
-            model.load_state_dict(torch.load(ckpt, map_location="cpu"))
+            model.load_state_dict(torch.load(ckpt, map_location="cpu", weights_only=True))
 
     corpus_path = CFG.paths.data_clean / "corpus_final.txt"
     with open(corpus_path, "r", encoding="utf-8") as f:
@@ -320,7 +336,7 @@ def stage_full():
     model, _  = stage_finetune(tokenizer)
     model_q, _= stage_compress(model, tokenizer)
     stage_export(model_q, tokenizer)
-    stage_test()
+    stage_test(model, tokenizer)
 
     print("\n" + "="*60)
     print("✅ PIPELINE COMPLETE")
@@ -345,7 +361,34 @@ def main():
         default="full",
         help="Pipeline stage to run",
     )
+    parser.add_argument("--max-steps", type=int, default=None,
+                        help="Override total fine-tuning steps")
+    parser.add_argument("--lce-warmup-steps", type=int, default=None,
+                        help="Override LCE warmup steps")
+    parser.add_argument("--batch-size", type=int, default=None,
+                        help="Per-device training batch size")
+    parser.add_argument("--gradient-accumulation-steps", type=int, default=None,
+                        help="Batches to accumulate before an optimizer step")
+    parser.add_argument("--num-workers", type=int, default=None,
+                        help="DataLoader workers; 0 is safest in Colab")
+    parser.add_argument("--device", choices=["auto", "cuda", "cpu"], default="auto",
+                        help="Training device (default: auto-detect CUDA)")
     args = parser.parse_args()
+
+    if args.max_steps is not None:
+        CFG.training.max_steps = args.max_steps
+    if args.lce_warmup_steps is not None:
+        CFG.training.lce_warmup_steps = args.lce_warmup_steps
+    if args.batch_size is not None:
+        CFG.training.batch_size = args.batch_size
+    if args.gradient_accumulation_steps is not None:
+        CFG.training.gradient_accumulation_steps = args.gradient_accumulation_steps
+    if args.num_workers is not None:
+        CFG.training.num_workers = args.num_workers
+    if args.device != "auto":
+        if args.device == "cuda" and not torch.cuda.is_available():
+            parser.error("--device cuda was requested, but CUDA is not available")
+        CFG.training.device = args.device
 
     stages = {
         "full":      stage_full,

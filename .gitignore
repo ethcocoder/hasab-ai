@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Pipeline outputs
+data/
+models/
+logs/
+
+# Local environment files
+.env
+.venv/
+venv/

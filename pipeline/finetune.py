@@ -86,7 +86,15 @@ class Trainer:
         self.model     = model
         self.tokenizer = tokenizer
         self.cfg       = config
-        self.device    = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        configured_device = getattr(config.training, "device", "auto")
+        if device:
+            self.device = device
+        elif configured_device == "cuda":
+            self.device = "cuda"
+        elif configured_device == "cpu":
+            self.device = "cpu"
+        else:
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model.to(self.device)
         self.history   = []
         print(f"🔧 Training on: {self.device}")

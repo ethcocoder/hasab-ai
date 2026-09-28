@@ -1,99 +1,165 @@
-# 🇪🇹 Hasab (ሃሳብ) — Google Colab Setup Guide
+# Hasab (ሃሳብ) — Google Colab GPU terminal guide
 
-This guide will walk you through setting up and training the **Hasab Amharic AGI** model on a free Google Colab GPU. 
+This project is designed to run from the **Colab terminal**. The Jupyter notebook has been removed.
 
-Because the project includes an automated data pipeline, custom tokenizer, and ONNX mobile export, Google Colab's free **T4 GPU** is perfect for running the entire workflow from end to end.
+## 1. Create a GPU runtime
 
----
+1. Open [Google Colab](https://colab.research.google.com/) and create a new notebook.
+2. Choose **Runtime → Change runtime type → T4 GPU** (or another available NVIDIA GPU).
+3. Open the terminal with **File → Open terminal**.
+4. Verify the GPU:
 
-## Step 1: Open Google Colab & Enable GPU
-
-1. Go to [Google Colab](https://colab.research.google.com/).
-2. Click on **New Notebook**.
-3. In the top menu, go to **Runtime > Change runtime type**.
-4. Under **Hardware accelerator**, select **T4 GPU**.
-5. Click **Save**.
-
----
-
-## Step 2: Clone the Repository
-
-In the first cell of your Colab notebook, clone your GitHub repository and navigate into the project folder.
-
-```python
-!git clone https://github.com/ethcocoder/hasab-ai.git
-%cd hasab-ai
+```bash
+nvidia-smi
 ```
 
----
+If `nvidia-smi` does not show a GPU, return to step 2 before installing anything.
 
-## Step 3: Install Dependencies
+## 2. Clone the project and install dependencies
 
-Install the required Python packages for the pipeline. This includes PyTorch, Transformers, ONNX Runtime (for mobile export), and Wikipedia-API (for Amharic corpus acquisition).
+Run these commands in the Colab terminal:
 
-Run this in a new cell:
-
-```python
-!pip install -r requirements.txt
-!pip install Wikipedia-API onnx onnxruntime sentencepiece -q
+```bash
+cd /content
+git clone https://github.com/ethcocoder/hasab-ai.git
+cd hasab-ai
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
----
+Colab normally includes a CUDA-enabled PyTorch build. Confirm that Python can see it:
 
-## Step 4: Run the Training Pipeline
-
-You have two options for running the pipeline: using the provided Jupyter Notebook or using the command-line interface (`main.py`).
-
-### Option A: Using the Interactive Notebook (Recommended)
-We have already included a fully configured notebook (`Amharic_AGI_Training.ipynb`) inside the repository.
-1. In Colab, click **File > Open notebook**.
-2. Select the **GitHub** tab.
-3. Paste your repository URL: `https://github.com/ethcocoder/hasab-ai.git`
-4. Open the `Amharic_AGI_Training.ipynb` file.
-5. Run the cells one by one.
-
-### Option B: Using the CLI (`main.py`)
-If you prefer to just launch the entire automated pipeline at once, you can run the main orchestrator script directly:
-
-```python
-# Run the full pipeline (Acquire -> Clean -> Tokenizer -> Train -> Compress -> Export -> Test)
-!python main.py --mode full
+```bash
+python - <<'PY'
+import torch
+print("PyTorch:", torch.__version__)
+print("CUDA available:", torch.cuda.is_available())
+print("GPU:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "none")
+PY
 ```
 
-*Note: The full training on a T4 GPU usually takes roughly 2 to 4 hours depending on the `max_steps` set in `config.py`.*
+The project downloads the pretrained `gpt2` weights the first time `finetune` runs. Make sure the runtime has internet access and enough disk space.
 
----
+## 3. Run a small smoke test first
 
-## Step 5: Test the Interactive Chat
+Do not start with 50,000 steps. First verify every stage with a short run:
 
-Once the pipeline finishes and the ONNX model is exported, you can test the chatbot's runtime environment directly inside Colab:
-
-```python
-!python main.py --mode chat
-```
-*(Type "quit" to exit the chat)*
-
----
-
-## Step 6: Download the Mobile Bundle
-
-The ultimate goal of this pipeline is to produce a lightweight, compressed `.zip` bundle that can be deployed on an Android or iOS device. 
-
-Once training and export are complete, run this cell to download the mobile bundle to your local computer:
-
-```python
-from google.colab import files
-
-# Download the final quantized ONNX bundle
-files.download('models/exported/hasab_mobile_bundle.zip')
+```bash
+python main.py --mode full \
+  --max-steps 20 \
+  --lce-warmup-steps 5 \
+  --batch-size 1 \
+  --gradient-accumulation-steps 1 \
+  --num-workers 0 \
+  --device cuda
 ```
 
----
+This command runs:
 
-### 💡 Troubleshooting Colab OOM (Out of Memory) Errors
-If you run out of GPU memory during the `finetune` stage, you need to adjust the batch size. 
-Open `config.py` in Colab (using the file explorer on the left) and change:
-```python
-CFG.training.batch_size = 4  # Default is 8, reduce this if you hit OOM limits
+1. data acquisition from Amharic Wikipedia;
+2. cleaning and safety filtering;
+3. tokenizer training;
+4. GPU fine-tuning;
+5. pruning and dynamic INT8 quantization;
+6. ONNX export and mobile bundle creation; and
+7. evaluation.
+
+The first run may take time while GPT-2 and Python packages are downloaded.
+
+## 4. Start a real training run
+
+After the smoke test succeeds, choose settings based on the available GPU memory. A T4 usually has 16 GB VRAM:
+
+```bash
+python main.py --mode full \
+  --max-steps 10000 \
+  --lce-warmup-steps 500 \
+  --batch-size 2 \
+  --gradient-accumulation-steps 8 \
+  --num-workers 0 \
+  --device cuda
 ```
-You can also reduce the `max_steps` for a faster, initial test run.
+
+The effective batch size is:
+
+```text
+batch-size × gradient-accumulation-steps
+```
+
+For the original default-length run, omit `--max-steps` and `--lce-warmup-steps`, but expect a long run:
+
+```bash
+python main.py --mode full --batch-size 2 --gradient-accumulation-steps 8 --num-workers 0 --device cuda
+```
+
+### If you receive CUDA out-of-memory errors
+
+Retry with a smaller per-device batch and/or sequence length. The sequence length is configured in `config.py`:
+
+```bash
+python main.py --mode full \
+  --max-steps 10000 \
+  --lce-warmup-steps 500 \
+  --batch-size 1 \
+  --gradient-accumulation-steps 16 \
+  --num-workers 0 \
+  --device cuda
+```
+
+Then, if necessary, edit `CFG.mind.max_seq_len` in `config.py` from `512` to `256`. Keep the change consistent for the whole run.
+
+## 5. Run individual stages from the terminal
+
+You can rerun a stage without rerunning the entire pipeline:
+
+```bash
+python main.py --mode acquire
+python main.py --mode clean
+python main.py --mode tokenizer
+python main.py --mode finetune --max-steps 10000 --batch-size 2 --num-workers 0 --device cuda
+python main.py --mode compress
+python main.py --mode export
+python main.py --mode test
+python main.py --mode chat
+```
+
+Use `python main.py --help` to see all options.
+
+## 6. Keep outputs after the Colab session ends
+
+Colab runtimes are temporary. Copy the repository outputs to Google Drive before disconnecting. In the terminal:
+
+```bash
+mkdir -p /content/drive/MyDrive/hasab-ai-output
+cp -r models logs /content/drive/MyDrive/hasab-ai-output/
+```
+
+If you want the source and outputs to persist between sessions, clone the repository into Drive instead:
+
+```bash
+git clone https://github.com/ethcocoder/hasab-ai.git /content/drive/MyDrive/hasab-ai
+cd /content/drive/MyDrive/hasab-ai
+```
+
+## 7. Expected output files
+
+After a successful run, the important files are:
+
+```text
+models/checkpoints/final_model.pt
+models/tokenizer/tokenizer.json
+models/tokenizer/tokenizer_config.json
+models/exported/hasab_amharic.onnx
+models/exported/hasab_mobile_bundle.zip
+logs/eval_report.json
+```
+
+The ONNX runtime now prefers the serialized BPE tokenizer from `tokenizer.json`, so terminal chat and exported inference use the same tokenization as training.
+
+## 8. Troubleshooting
+
+- **`CUDA is not available`**: select a GPU runtime and restart the runtime.
+- **`No raw files found`**: the pipeline automatically runs acquisition; check internet access if Wikipedia download fails.
+- **Hugging Face download errors**: rerun `python main.py --mode finetune` after confirming internet access.
+- **Colab disconnects**: use fewer steps, save checkpoints, and copy `models/` to Drive.
+- **Export problems related to TFLite**: the pipeline treats TFLite as optional. ONNX export and the mobile bundle are the primary outputs.

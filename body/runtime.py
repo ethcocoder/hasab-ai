@@ -32,6 +32,7 @@ class MobileRuntime:
         self._vocab    = None
         self._id2token = None
         self._special  = None
+        self._tokenizer = None
         self._loaded   = False
 
         # Import ONNX Runtime (only dep)
@@ -50,6 +51,7 @@ class MobileRuntime:
     def load(self):
         model_path = self.bundle_dir / "hasab_amharic.onnx"
         tok_path   = self.bundle_dir / "tokenizer_config.json"
+        tokenizer_json = self.bundle_dir / "tokenizer.json"
 
         if not model_path.exists():
             raise FileNotFoundError(f"Model not found: {model_path}")
@@ -72,6 +74,14 @@ class MobileRuntime:
             self._vocab    = config["vocab"]
             self._special  = config["special_tokens"]
             self._id2token = {v: k for k, v in self._vocab.items()}
+        # The model is trained with BPE. Prefer the serialized tokenizer so
+        # inference uses exactly the same token IDs as training.
+        if tokenizer_json.exists():
+            try:
+                from tokenizers import Tokenizer
+                self._tokenizer = Tokenizer.from_file(str(tokenizer_json))
+            except ImportError:
+                print("⚠️  tokenizers is unavailable; using character fallback")
 
         self._loaded = True
         print(f"✅ Mobile runtime loaded from {self.bundle_dir}")
@@ -80,6 +90,9 @@ class MobileRuntime:
     # ── Tokenize ──────────────────────────────────────────────────────────────
 
     def encode(self, text: str, max_length: int = 512) -> List[int]:
+        if self._tokenizer is not None:
+            bos = self._special.get("<bos>", 2)
+            return ([bos] + self._tokenizer.encode(text).ids)[:max_length]
         bos = self._special.get("<bos>", 2)
         unk = self._special.get("<unk>", 1)
         pad = self._special.get("<pad>", 0)
@@ -89,6 +102,8 @@ class MobileRuntime:
         return ids
 
     def decode(self, ids: List[int], skip_special: bool = True) -> str:
+        if self._tokenizer is not None:
+            return self._tokenizer.decode(ids, skip_special_tokens=skip_special)
         special_ids = set(self._special.values()) if skip_special else set()
         tokens = [self._id2token.get(i, "?") for i in ids if i not in special_ids]
         return "".join(tokens)
