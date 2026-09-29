@@ -65,7 +65,7 @@ def stage_clean():
     print(f"✅ Knowledge records: {stats['kept_knowledge']} → {outputs['knowledge']}")
     print(f"✅ Chat records: {stats['kept_chat']} → {outputs['chat']}")
     print(f"🧹 Removed duplicates: {stats['removed_duplicate']}")
-    print(f"⚠️  Records needing human review: {stats['review_numeric_or_historical']}")
+    print(f"⚠️  Held out for human review: {stats['held_for_review']} → {outputs['review']}")
     return outputs
 
 

@@ -3,6 +3,7 @@
 Outputs JSONL records instead of mixing unrelated text formats:
 - data/processed/knowledge.jsonl: clean Amharic knowledge text
 - data/processed/chat.jsonl: validated user/assistant conversations
+- data/processed/review.jsonl: factual claims held out for human review
 - data/processed/manifest.json: counts, rejection reasons, and warnings
 
 This is quality control, not fact verification. Numeric, political, and
@@ -57,6 +58,7 @@ class AmharicDataBuilder:
             "removed_unsafe": 0,
             "chat_invalid": 0,
             "review_numeric_or_historical": 0,
+            "held_for_review": 0,
         }
         self._seen_normalized: set[str] = set()
         self._recent_knowledge: List[str] = []
@@ -175,6 +177,7 @@ class AmharicDataBuilder:
 
     def build(self) -> Dict[str, Path]:
         knowledge = []
+        review = []
         for candidate, source in self._read_text_candidates():
             self.stats["raw_text_candidates"] += 1
             candidate = candidate[: self.max_length]
@@ -192,6 +195,14 @@ class AmharicDataBuilder:
             flags = self._review_flag(candidate)
             if flags:
                 self.stats["review_numeric_or_historical"] += 1
+                self.stats["held_for_review"] += 1
+                review.append({
+                    "type": "text",
+                    "text": candidate,
+                    "source": source,
+                    "review_flags": flags,
+                })
+                continue
             knowledge.append({
                 "type": "text",
                 "text": candidate,
@@ -217,13 +228,15 @@ class AmharicDataBuilder:
         outputs = {
             "knowledge": self.data_processed / "knowledge.jsonl",
             "chat": self.data_processed / "chat.jsonl",
+            "review": self.data_processed / "review.jsonl",
             "manifest": self.data_processed / "manifest.json",
         }
         self._write_jsonl(outputs["knowledge"], knowledge)
         self._write_jsonl(outputs["chat"], clean_chat)
+        self._write_jsonl(outputs["review"], review)
         manifest = {
             "schema_version": 1,
-            "quality_note": "Automatic filtering cannot verify factual accuracy; review flagged records.",
+            "quality_note": "Flagged numeric, historical, and political claims are held out until human review.",
             "stats": self.stats,
             "outputs": {name: str(path) for name, path in outputs.items()},
             "mix_recommendation": {"knowledge": 0.70, "chat": 0.30},

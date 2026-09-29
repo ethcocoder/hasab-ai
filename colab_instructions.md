@@ -68,6 +68,7 @@ This creates:
 ```text
 data/processed/knowledge.jsonl
 data/processed/chat.jsonl
+data/processed/review.jsonl
 data/processed/manifest.json
 ```
 
@@ -79,9 +80,9 @@ cat data/processed/manifest.json
 
 The builder removes short lines, headings, URL records, malformed fragments,
 near-duplicates, low-Amharic records, and unsafe records. It flags numeric,
-historical, and political claims for human review. Automatic cleaning cannot
-prove that a factual claim is true, so review those records before a serious
-training run.
+historical, and political claims for human review. These records are held out
+of training and written to `review.jsonl`, so unverified facts are not taught
+to the model by default.
 
 Then run the Qwen smoke test:
 
